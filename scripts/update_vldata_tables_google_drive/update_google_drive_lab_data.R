@@ -62,7 +62,7 @@
     
     # Upload all our csv's to the vldata_tables_download folder in Google Drive)
     walk(1:length(all_tables), ~ drive_upload(paste0(all_table_names[.],".csv"), 
-                 path = as_id("1PHP3nJTCGYMHjjdjHesHSSUzGrCrfZ45"),
+                 path = as_id("198YgVgnr9_z6YhqbQWbDlo0GJK70u_cV"),
                  overwrite = TRUE))
 
 
