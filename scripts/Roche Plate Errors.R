@@ -68,7 +68,7 @@ test %>%
   arrange(desc(n))
 
 instrument_master = instrument_master %>%
-  select(instrument_id, instrument_model) %>%
+  select(instrument_id, instrument_model, supplier_site_id) %>%
   mutate(instrument_id = as.numeric(instrument_id)) %>%
   filter(instrument_id %in% unique(test_activity_roche$instrument_id)) %>%
   mutate(instrument_model = toupper(instrument_model))
@@ -78,14 +78,14 @@ test_activity_roche = test_activity_roche %>%
   left_join(instrument_master, by = c("instrument_id" = "instrument_id"))
 
 test_activity_roche %>%
-  group_by(country_code, instrument_model) %>%
+  group_by(country_code, supplier_site_id) %>%
   summarize(instruments = length(unique(instrument_id)),
             tests = n()) %>%
-  write_csv(paste0(dataout, "/countries_models.csv"))
+  write_csv(paste0(dataout, "/countries_sites.csv"))
 
 error_codes = test_activity_roche %>%
   filter(!is.na(error_code_list)) %>%
-  select(country_code, instrument_id, instrument_model, error_code_list) %>%
+  select(country_code, supplier_site, instrument_model, error_code_list) %>%
   separate(error_code_list, c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o"), sep = ",") %>%
   pivot_longer(cols = c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o"), values_to = "error_code_list") %>%
   select(-name) %>%
@@ -168,7 +168,7 @@ error_codes %>%
 #### DATA WRANGLING - Second Pass ============================================================================
 
 error_codes = test_activity_roche %>%
-  select(country_code, instrument_id, instrument_model, test_date, error_code_list) %>%
+  select(country_code, supplier_site_id, instrument_model, test_date, error_code_list) %>%
   separate(error_code_list, c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o"), sep = ",") %>%
   pivot_longer(cols = c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o"), values_to = "error_code_list") %>%
   select(-name) %>%
@@ -177,7 +177,6 @@ error_codes = test_activity_roche %>%
 error_codes = error_codes %>%
   filter(str_detect(instrument_model, "00")) %>%
   mutate(month = round_date(test_date, unit = "month"))
-
 
 error_codes_sum = error_codes %>%
   group_by(country_code, instrument_model, month, error_code_list) %>%
@@ -275,4 +274,96 @@ for(error in unique(top_errors$error_code_list)){
   
   ggsave(plot = plot, filename = paste0(dataout, "/", error, "_percent_short.png"), device = "png", width = 20, height = 5)
   
+}
+
+# By site ID
+
+
+error_codes_sum_site = error_codes %>%
+  group_by(country_code, supplier_site_id, month, error_code_list) %>%
+  summarize(n = n()) %>%
+  filter(!is.na(error_code_list))
+
+error_codes_total_test_site = error_codes %>%
+  group_by(country_code, supplier_site_id, month) %>%
+  summarize(tests = n())
+
+error_codes_sum_site = error_codes_sum_site %>%
+  left_join(error_codes_total_test_site) %>%
+  mutate(percent = n*100/tests)
+
+error_codes_sum_site_short = error_codes_sum_site %>%
+  filter(month > as.Date("2020-11-01")) %>%
+  filter(country_code != "ZM")
+
+error_codes_sum_site_short %>%
+  group_by(country_code, error_code_list) %>%
+  summarize(percent = mean(percent, na.rm = T)) %>%
+  view()
+
+for(site in unique(error_codes_sum_site_short$supplier_site_id)){
+  error_codes_sum_site_short %>%
+    filter(supplier_site_id == site) %>%
+    group_by(error_code_list) %>%
+    summarize(n = sum(n, na.rm = T),
+              tests = sum(tests, na.rm = T)) %>%
+    mutate(percent = n*100/tests) %>%
+    arrange(desc(percent)) %>%
+    write_csv(paste0(dataout, "/errors_site_", site, ".csv"))
+}
+
+error_codes_sum_site_short %>%
+  group_by(supplier_site_id) %>%
+  summarize(n = sum(n, na.rm = T),
+            tests = sum(tests, na.rm = T)) %>%
+  mutate(percent = n*100/tests) %>%
+  arrange(desc(percent)) %>%
+  write_csv(paste0(dataout, "/total_errors_by_site.csv"))
+
+top_errors = c("6284.6", "6284.5", "6282.18", "6284.8")
+
+empty_months = error_codes %>%
+  filter(month > as.Date("2020-11-01")) %>%
+  filter(!duplicated(month)) %>%
+  select(month)
+
+for(site in unique(error_codes_sum_site_short$supplier_site_id)){
+  n = 1
+  for(error in top_errors){
+    n = n+1
+    
+    
+    temp = error_codes_sum_site_short %>%
+      filter(supplier_site_id == site) %>%
+      filter(error_code_list == error)
+    
+    temp_months = empty_months %>%
+      filter(!month %in% temp$month) %>%
+      mutate(supplier_site_id = site,
+             error_code_list = error)
+
+    temp = temp %>% 
+      bind_rows(temp_months) %>%
+      ungroup() %>%
+      select(supplier_site_id, month, error_code_list, percent)
+    
+    temp[is.na(temp)]<-0
+    
+    plot = temp %>%
+      mutate(month = as.Date(month, "%Y-%m-%d")) %>%
+      ggplot(aes(x = (month+14), y = percent, fill = error_code_list)) +
+      geom_bar(stat = "identity") +
+      geom_text(aes(label = ifelse(percent>0, paste0(signif(percent, digits = 2), "%"), "")), size = 4) +
+      scale_fill_manual(values = si_palettes$category20[n]) +
+      scale_x_date("Month-Year", labels = date_format("%Y-%m"), breaks = date_breaks("1 month")) +
+      si_style() +
+      theme(legend.position = "none",
+            axis.text.x = element_text(angle = 90)) +
+      labs(title = paste0("Site: ", site, " Error: ", error),
+           y = "Error Rate (Percent)")
+    
+    ggsave(plot = plot, filename = paste0(dataout, "/","site_", site, "_error_", error, "_percent_short.png"), device = "png", width = 10, height = 5)
+    
+    
+  }
 }

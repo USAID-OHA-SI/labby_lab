@@ -22,11 +22,11 @@
       
       drive_auth()
       
-      dsn_database = 'database name'   # Specify the name of your database.
-      dsn_hostname = 'host name'  
-      dsn_port = 'port number'                # Specify your port number as a character. e.g. 5432
-      dsn_uid = 'username'   # Specify your username. e.g. "admin"
-      dsn_pwd = 'password'        # Specify your password. e.g. "xxx"
+      dsn_database = 'vlprddb'   # Specify the name of your database.
+      dsn_hostname = 'vl-prd-db.postgres.database.azure.com'  
+      dsn_port = '5432'                # Specify your port number as a character. e.g. 5432
+      dsn_uid = 'arichardson@vl-prd-db'   # Specify your username. e.g. "admin"
+      dsn_pwd = 'aRIC@20OctPRd'        # Specify your password. e.g. "xxx"
       
       # establish a connection to the database.
       connec <- DBI::dbConnect(RPostgres::Postgres(), 
