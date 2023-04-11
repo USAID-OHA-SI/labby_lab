@@ -15,7 +15,7 @@
       library(RPostgres)
 
 # LOAD DATA ============================================================================  
-
+ 
       # Authorization to download data from Google Drive.  
       # request authorization from Google. If you are connecting to Google drive form R using the googledrive package for the first time
       # you can find instruction on how to gain Authorization here https://googledrive.tidyverse.org/.  
